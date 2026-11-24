@@ -1,0 +1,112 @@
+# ==========================================
+# Dependencies & Package Managers
+# ==========================================
+node_modules/
+.pnpm-store/
+.pnp
+.pnp.js
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
+
+# ==========================================
+# Build & Compilation Outputs
+# ==========================================
+dist/
+build/
+out/
+*.tsbuildinfo
+.swc/
+
+# ==========================================
+# Environment Variables & Secrets
+# ==========================================
+.env
+.env.*
+!.env.example
+!.env.template
+*.pem
+*.key
+*.crt
+*.p12
+
+# ==========================================
+# Prisma (Generated Client & Local DBs)
+# ==========================================
+# Ignore custom Prisma generated outputs if configured outside node_modules
+prisma/generated/
+src/generated/prisma/
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# ==========================================
+# Logs & Runtime Data (Pino / PM2 / Node)
+# ==========================================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.pm2/
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ==========================================
+# Testing & Code Coverage (Jest)
+# ==========================================
+coverage/
+.nyc_output/
+junit.xml
+
+# ==========================================
+# Local Uploads & Temp Files (Multer)
+# ==========================================
+uploads/*
+!uploads/.gitkeep
+temp/
+tmp/
+*.tmp
+*.temp
+
+# ==========================================
+# Docker & Infrastructure Overrides
+# ==========================================
+docker-compose.override.yml
+.docker/
+
+# ==========================================
+# IDEs & Editors
+# ==========================================
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+
+# ==========================================
+# Operating System Artifacts
+# ==========================================
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+Thumbs.db
+ehthumbs.db
+Desktop.ini

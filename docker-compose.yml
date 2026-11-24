@@ -1,0 +1,68 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: nest-blog-postgres
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: nest-blog
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U postgres']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nest-blog-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: nest-blog-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - nest-blog-network
+
+  app:
+    image: my-nest-app
+    container_name: nest-blog-app
+    restart: unless-stopped
+    ports:
+      - '9001:9001'
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: development
+      PORT: 9001
+      DATABASE_URL: postgresql://postgres:postgres@nest-blog-postgres:5432/nest-blog?schema=public
+      REDIS_HOST: nest-blog-redis
+      REDIS_PORT: 6379
+      CORS_ORIGINS: http://localhost:3000
+      APP_URL: http://localhost:9001
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - nest-blog-network
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  nest-blog-network:
+    driver: bridge

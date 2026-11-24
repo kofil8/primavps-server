@@ -1,0 +1,565 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// ============================================================================
+// 1. ENUMS
+// ============================================================================
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  SUPPORT
+  RESELLER
+  USER
+}
+
+enum FileVisibility {
+  PUBLIC
+  PRIVATE
+}
+
+enum ProductType {
+  ISP_VPS
+  CLOUD_VPS
+  RESELLER_PACK
+}
+
+enum BillingCycle {
+  MONTHLY
+  QUARTERLY
+  ANNUAL
+}
+
+enum OrderStatus {
+  PENDING_PAYMENT
+  PAID
+  PROVISIONING
+  ACTIVE
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum InvoiceStatus {
+  UNPAID
+  PAID
+  OVERDUE
+  CANCELLED
+  REFUNDED
+}
+
+enum PaymentGateway {
+  SSLCOMMERZ
+  BKASH
+  NAGAD
+  ROCKET
+  WALLET
+  MANUAL
+}
+
+enum TransactionStatus {
+  INITIATED
+  PENDING
+  VALIDATED
+  FAILED
+  CANCELLED
+  REFUNDED
+}
+
+enum IpStatus {
+  AVAILABLE
+  RESERVED
+  ASSIGNED
+  FLAGGED
+  QUARANTINED
+}
+
+enum InstanceStatus {
+  PROVISIONING
+  RUNNING
+  STOPPED
+  SUSPENDED
+  TERMINATED
+}
+
+enum SwapStatus {
+  PENDING
+  APPROVED
+  COMPLETED
+  REJECTED
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum NodeHealth {
+  OPERATIONAL
+  DEGRADED
+  MAINTENANCE
+  OUTAGE
+}
+
+// ============================================================================
+// 2. IDENTITY & EXISTING STARTER MODELS (100% Backwards-Compatible)
+// ============================================================================
+
+model User {
+  id        String  @id @default(uuid())
+  email     String  @unique
+  firstName String
+  lastName  String
+  password  String
+  phone     String? // BD phone / WhatsApp for support & bKash verification
+  role      Role    @default(USER)
+
+  // Reseller & Wallet (Optional balance for refunds / reseller credits)
+  walletBalanceBdt Int     @default(0)
+  resellerDiscount Int     @default(0) // e.g., 10-20% for RESELLER role
+  isSuspended      Boolean @default(false)
+
+  // Email verification
+  emailVerified                Boolean   @default(false)
+  emailVerificationToken       String?
+  emailVerificationTokenExpiry DateTime?
+
+  // Password reset
+  resetToken       String?
+  resetTokenExpiry DateTime?
+
+  // Existing starter relations
+  posts         Post[]
+  uploadedFiles File[]
+
+  // primavps domain relations
+  orders            Order[]
+  invoices          Invoice[]
+  instances         VpsInstance[]
+  ipSwaps           IpSwapRequest[]    @relation("UserSwapRequests")
+  handledSwaps      IpSwapRequest[]    @relation("AdminHandledSwaps")
+  couponRedemptions CouponRedemption[]
+  tickets           SupportTicket[]
+  ticketMessages    TicketMessage[]
+  auditLogs         AuditLog[]
+
+  // Soft-delete & Audit
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([role])
+  @@index([phone])
+  @@map("users")
+}
+
+model Post {
+  id       String @id @default(uuid())
+  title    String
+  slug     String? @unique // Ready for /blog/[slug]
+  category String?
+  summary  String?
+  content  String
+  readTime String?
+  published Boolean @default(false)
+
+  author   User   @relation(fields: [authorId], references: [id])
+  authorId String
+
+  deletedAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  @@index([published, createdAt])
+  @@map("posts")
+}
+
+model File {
+  id           String         @id @default(uuid())
+  originalName String
+  mimeType     String
+  size         Int
+  path         String
+  url          String?
+  provider     String         @default("local") // "local" | "s3"
+  visibility   FileVisibility @default(PRIVATE)
+
+  uploadedBy   User   @relation(fields: [uploadedById], references: [id])
+  uploadedById String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("files")
+}
+
+model EmailLog {
+  id       String    @id @default(uuid())
+  to       String
+  subject  String
+  template String
+  status   String // "sent" | "failed"
+  error    String?
+  sentAt   DateTime?
+
+  createdAt DateTime @default(now())
+
+  @@index([to])
+  @@map("email_logs")
+}
+
+// ============================================================================
+// 3. CATALOG & PRICING (ISP Plans + Cloud VPS Config)
+// ============================================================================
+
+model Plan {
+  id            String      @id @default(uuid())
+  slug          String      @unique // "starter", "pro", "vip"
+  name          String
+  tagline       String?
+  productType   ProductType
+  vcpu          Int
+  ramGb         Int
+  nvmeGb        Int
+  bandwidth     String      @default("1 Gbps Unmetered")
+  osDefault     String      @default("Windows 11 Pro")
+  priceBdt      Int // Monthly base price in BDT
+  priceFreshBdt Int? // Virgin ASN monthly price (for ISP_VPS)
+  stockCount    Int         @default(10)
+  isPopular     Boolean     @default(false)
+  isActive      Boolean     @default(true)
+  sortOrder     Int         @default(0)
+
+  orders Order[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([productType, isActive])
+  @@map("plans")
+}
+
+// ============================================================================
+// 4. COUPONS & ABUSE PREVENTION
+// ============================================================================
+
+model Coupon {
+  id              String        @id @default(uuid())
+  code            String        @unique // "LAUNCH10", "CLOUD15", "VIRGIN12"
+  description     String?
+  discountPercent Int // 1..50
+  applicableTypes ProductType[] // Prevents CLOUD15 on ISP_VPS
+  firstMonthOnly  Boolean       @default(true)
+  minOrderBdt     Int           @default(0)
+  maxUses         Int? // Global cap
+  maxUsesPerUser  Int           @default(1)
+  usedCount       Int           @default(0)
+  startsAt        DateTime      @default(now())
+  expiresAt       DateTime?
+  isActive        Boolean       @default(true)
+
+  orders      Order[]
+  redemptions CouponRedemption[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([code, isActive])
+  @@map("coupons")
+}
+
+model CouponRedemption {
+  id       String @id @default(uuid())
+  coupon   Coupon @relation(fields: [couponId], references: [id])
+  couponId String
+  user     User   @relation(fields: [userId], references: [id])
+  userId   String
+  orderId  String @unique
+
+  createdAt DateTime @default(now())
+
+  @@index([couponId, userId])
+  @@map("coupon_redemptions")
+}
+
+// ============================================================================
+// 5. ORDERS, INVOICES & PAYMENTS (SSLCommerz / bKash / Nagad)
+// ============================================================================
+
+model Order {
+  id          String      @id @default(uuid())
+  orderNumber String      @unique // e.g., "PVPS-2026-1001"
+  user        User        @relation(fields: [userId], references: [id])
+  userId      String
+  plan        Plan?       @relation(fields: [planId], references: [id])
+  planId      String?
+  productType ProductType
+
+  // Configuration snapshot
+  country     String       @default("US") // US, UK, DE, FR
+  carrier     String?      @default("Auto") // AT&T, Comcast, BT, etc.
+  isFreshIp   Boolean      @default(false)
+  osName      String?      // e.g., "Ubuntu 24.04" or "Windows 11"
+  regionName  String?      // e.g., "Ashburn, VA"
+  customSpecs Json?        // { vcpu, ram, nvme, residentialIpAddon } for CLOUD_VPS
+  cycle       BillingCycle @default(MONTHLY)
+
+  // Server-calculated pricing (Never trust client amounts)
+  subtotalBdt      Int
+  cycleDiscountBdt Int @default(0)
+  couponDiscountBdt Int @default(0)
+  totalBdt         Int
+
+  coupon   Coupon? @relation(fields: [couponId], references: [id])
+  couponId String?
+
+  status OrderStatus @default(PENDING_PAYMENT)
+
+  invoices Invoice[]
+  instance VpsInstance?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@map("orders")
+}
+
+// Separate Invoice model so monthly renewals generate new invoices cleanly
+model Invoice {
+  id            String        @id @default(uuid())
+  invoiceNumber String        @unique // e.g., "INV-2026-1001"
+  user          User          @relation(fields: [userId], references: [id])
+  userId        String
+  order         Order?        @relation(fields: [orderId], references: [id])
+  orderId       String?
+  instance      VpsInstance?  @relation(fields: [instanceId], references: [id])
+  instanceId    String?
+  description   String
+  amountBdt     Int
+  status        InvoiceStatus @default(UNPAID)
+  dueDate       DateTime
+  paidAt        DateTime?
+
+  transactions PaymentTransaction[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([dueDate, status])
+  @@map("invoices")
+}
+
+model PaymentTransaction {
+  id                String            @id @default(uuid())
+  invoice           Invoice           @relation(fields: [invoiceId], references: [id])
+  invoiceId         String
+  gateway           PaymentGateway
+  gatewayTranId     String            @unique // Idempotency key sent to SSLCommerz/bKash
+  gatewayValId      String?           // SSLCommerz val_id / bKash paymentID
+  amountBdt         Int
+  currency          String            @default("BDT")
+  status            TransactionStatus @default(INITIATED)
+  refundedAmountBdt Int               @default(0)
+  rawPayload        Json?             // Full IPN/webhook payload for compliance & disputes
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([invoiceId])
+  @@index([status])
+  @@map("payment_transactions")
+}
+
+// ============================================================================
+// 6. INFRASTRUCTURE, IP POOL, VPS INSTANCES & 7-DAY IP SWAPS
+// ============================================================================
+
+model ProxmoxNode {
+  id        String     @id @default(uuid())
+  name      String     @unique // e.g., "us-ashburn-01", "eu-frankfurt-01"
+  region    String     // "Ashburn, VA"
+  country   String     // "US"
+  host      String     // API endpoint / IP
+  health    NodeHealth @default(OPERATIONAL)
+  pingMs    Int?       // Live latency from Dhaka
+  uptimePct Float      @default(99.98)
+  isActive  Boolean    @default(true)
+
+  instances VpsInstance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("proxmox_nodes")
+}
+
+model IpPool {
+  id             String   @id @default(uuid())
+  ipAddress      String   @unique
+  subnet         String?
+  country        String   // "US", "UK", "DE", "FR"
+  state          String?  // "VA", "TX", "CA", "FL"
+  carrier        String   // "AT&T", "Comcast", "Verizon", "BT"
+  asn            String?  // e.g., "AS7018"
+  isVirgin       Boolean  @default(false)
+  lastIpqsScore  Int?     // 0..100
+  lastCheckedAt  DateTime?
+  status         IpStatus @default(AVAILABLE)
+
+  instance VpsInstance?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([country, carrier, isVirgin, status])
+  @@map("ip_pool")
+}
+
+model VpsInstance {
+  id       String @id @default(uuid())
+  user     User   @relation(fields: [userId], references: [id])
+  userId   String
+  order    Order  @relation(fields: [orderId], references: [id])
+  orderId  String @unique
+
+  // Infrastructure mapping
+  node        ProxmoxNode? @relation(fields: [nodeId], references: [id])
+  nodeId      String?
+  proxmoxVmId Int?         // VMID on Proxmox VE
+  ipPool      IpPool?      @relation(fields: [ipPoolId], references: [id])
+  ipPoolId    String?      @unique
+
+  // Connection details
+  hostname    String?
+  ipAddress   String?
+  rdpPort     Int     @default(3389)
+  username    String? @default("Administrator")
+  passwordEnc String? // AES-256-GCM encrypted in NestJS before saving
+  osName      String  @default("Windows 11 Pro")
+
+  // Specs snapshot
+  vcpu    Int
+  ramGb   Int
+  nvmeGb  Int
+  country String
+  carrier String?
+
+  // Lifecycle & 7-Day Swap Protection
+  status                InstanceStatus @default(PROVISIONING)
+  provisionedAt         DateTime?
+  expiresAt             DateTime
+  autoRenew             Boolean        @default(false)
+  freeSwapEligibleUntil DateTime?      // provisionedAt + 7 days
+  freeSwapsUsed         Int            @default(0) // Cap free swaps (e.g., max 1-2)
+
+  invoices     Invoice[]
+  swapRequests IpSwapRequest[]
+  tickets      SupportTicket[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@index([expiresAt, status])
+  @@map("vps_instances")
+}
+
+model IpSwapRequest {
+  id                 String      @id @default(uuid())
+  instance           VpsInstance @relation(fields: [instanceId], references: [id])
+  instanceId         String
+  user               User        @relation("UserSwapRequests", fields: [userId], references: [id])
+  userId             String
+  oldIp              String
+  newIp              String?
+  reason             String
+  ipqsScoreAtRequest Int?
+  isFree             Boolean     @default(true)
+  feeBdt             Int         @default(0)
+  status             SwapStatus  @default(PENDING)
+  adminNote          String?
+  handledBy          User?       @relation("AdminHandledSwaps", fields: [handledById], references: [id])
+  handledById        String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([instanceId])
+  @@map("ip_swap_requests")
+}
+
+// ============================================================================
+// 7. SUPPORT TICKETS & AUDIT LOGS
+// ============================================================================
+
+model SupportTicket {
+  id           String         @id @default(uuid())
+  ticketNumber String         @unique // e.g., "TKT-2026-0042"
+  user         User           @relation(fields: [userId], references: [id])
+  userId       String
+  instance     VpsInstance?   @relation(fields: [instanceId], references: [id])
+  instanceId   String?
+  subject      String
+  department   String         @default("TECHNICAL") // TECHNICAL | BILLING | IP_SWAP | SALES
+  priority     TicketPriority @default(MEDIUM)
+  status       TicketStatus   @default(OPEN)
+
+  messages TicketMessage[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, status])
+  @@map("support_tickets")
+}
+
+model TicketMessage {
+  id        String        @id @default(uuid())
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId  String
+  sender    User          @relation(fields: [senderId], references: [id])
+  senderId  String
+  isStaff   Boolean       @default(false)
+  body      String
+
+  createdAt DateTime @default(now())
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_messages")
+}
+
+model AuditLog {
+  id        String  @id @default(uuid())
+  actor     User?   @relation(fields: [actorId], references: [id])
+  actorId   String?
+  action    String  // e.g., "ORDER_PAID", "VPS_PROVISIONED", "IP_SWAPPED", "PASSWORD_VIEWED"
+  entity    String  // e.g., "VpsInstance", "Order", "IpPool"
+  entityId  String
+  metadata  Json?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
