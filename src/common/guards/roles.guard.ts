@@ -23,18 +23,16 @@ export class RolesGuard implements CanActivate {
     // No roles required — allow access
     if (!requiredRoles || requiredRoles.length === 0) return true;
 
-    const request = context.switchToHttp().getRequest<
-      Request & { user?: JwtPayload }
-    >();
+    const request = context
+      .switchToHttp()
+      .getRequest<Request & { user?: JwtPayload }>();
     const user = request.user;
 
     if (!user) {
       throw new ForbiddenException('Access denied.');
     }
 
-    const hasRole = requiredRoles.some(
-      (role) => user.role === role,
-    );
+    const hasRole = requiredRoles.some((role) => user.role === role);
 
     if (!hasRole) {
       throw new ForbiddenException(

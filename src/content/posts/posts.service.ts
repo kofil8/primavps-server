@@ -1,4 +1,8 @@
-import { ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Post, Prisma } from '@prisma/client';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { CreatePostDto } from './dto/create-post.dto';
@@ -16,7 +20,14 @@ export class PostsService {
       authorId?: string;
     } & PaginationParams,
   ) {
-    const { search, authorId, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = params;
+    const {
+      search,
+      authorId,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+    } = params;
     const skip = (page - 1) * limit;
 
     const where: Prisma.PostWhereInput = {
@@ -85,10 +96,7 @@ export class PostsService {
     });
   }
 
-  async deletePost(
-    id: string,
-    currentUser: JwtPayload,
-  ): Promise<void> {
+  async deletePost(id: string, currentUser: JwtPayload): Promise<void> {
     await this.ensureOwnershipOrAdmin(id, currentUser);
     // Soft-delete: set deletedAt instead of actually deleting
     await this.prisma.post.update({
@@ -97,7 +105,10 @@ export class PostsService {
     });
   }
 
-  private async ensureOwnershipOrAdmin(postId: string, currentUser: JwtPayload) {
+  private async ensureOwnershipOrAdmin(
+    postId: string,
+    currentUser: JwtPayload,
+  ) {
     const post = await this.prisma.post.findUnique({
       where: { id: postId },
       select: { authorId: true },

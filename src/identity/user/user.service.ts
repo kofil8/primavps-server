@@ -1,7 +1,4 @@
-import {
-  ForbiddenException,
-  Injectable,
-} from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 import { Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../../core/prisma/prisma.service';
 import { UpdateUserDto } from './dto/update-user.dto';
@@ -17,7 +14,13 @@ export class UserService {
       search?: string;
     } & PaginationParams,
   ) {
-    const { search, page = 1, limit = 10, sortBy = 'createdAt', sortOrder = 'desc' } = params;
+    const {
+      search,
+      page = 1,
+      limit = 10,
+      sortBy = 'createdAt',
+      sortOrder = 'desc',
+    } = params;
     const skip = (page - 1) * limit;
 
     const searchCondition: Prisma.UserWhereInput = search
@@ -103,10 +106,7 @@ export class UserService {
     });
   }
 
-  async deleteUserById(
-    id: string,
-    currentUser: JwtPayload,
-  ): Promise<void> {
+  async deleteUserById(id: string, currentUser: JwtPayload): Promise<void> {
     this.ensureOwnershipOrAdmin(id, currentUser);
     // Soft-delete: set deletedAt instead of actually deleting
     await this.prisma.user.update({

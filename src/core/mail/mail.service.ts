@@ -10,7 +10,10 @@ export class MailService {
 
   constructor(private readonly configService: ConfigService) {
     const apiKey = this.configService.get<string>('RESEND_API_KEY');
-    this.from = this.configService.get<string>('RESEND_FROM', 'noreply@yourapp.com');
+    this.from = this.configService.get<string>(
+      'RESEND_FROM',
+      'noreply@yourapp.com',
+    );
 
     if (apiKey) {
       this.resend = new Resend(apiKey);
@@ -62,7 +65,10 @@ export class MailService {
     }
   }
 
-  async sendVerificationEmail(to: string, verificationToken: string): Promise<void> {
+  async sendVerificationEmail(
+    to: string,
+    verificationToken: string,
+  ): Promise<void> {
     const verifyUrl = `${this.configService.get<string>('APP_URL', 'http://localhost:3000')}/auth/verify-email?token=${verificationToken}`;
 
     if (this.resend) {

@@ -10,11 +10,11 @@ import {
   UseInterceptors,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
-import { UploadService } from './upload.service';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import type { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
 import { PaginationDto } from '../../common/dto/pagination.dto';
 import { UUIDValidationPipe } from '../../common/pipes/uuid-validation.pipe';
+import { UploadService } from './upload.service';
 
 // Allowed MIME types for file uploads
 const ALLOWED_MIME_TYPES = [
@@ -64,14 +64,15 @@ export class UploadController {
     @CurrentUser() user: JwtPayload,
     @Query() pagination: PaginationDto,
   ) {
-    return this.uploadService.getUserFiles(user.sub, pagination.page, pagination.limit);
+    return this.uploadService.getUserFiles(
+      user.sub,
+      pagination.page,
+      pagination.limit,
+    );
   }
 
   @Delete(':id')
-  async delete(
-    @Param('id', UUIDValidationPipe) id: string,
-    @CurrentUser() user: JwtPayload,
-  ) {
+  async delete(@Param('id', UUIDValidationPipe) id: string) {
     return this.uploadService.deleteFile(id);
   }
 }

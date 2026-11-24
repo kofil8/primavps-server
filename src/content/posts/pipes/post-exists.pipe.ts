@@ -12,10 +12,7 @@ import { PostsService } from '../posts.service';
 export class PostExistsPipe implements PipeTransform {
   constructor(private readonly postService: PostsService) {}
 
-  async transform(
-    value: string,
-    metadata: ArgumentMetadata,
-  ): Promise<string> {
+  async transform(value: string, metadata: ArgumentMetadata): Promise<string> {
     if (!isUUID(value)) {
       throw new BadRequestException(
         `Invalid UUID format for parameter '${metadata.data || 'id'}'`,

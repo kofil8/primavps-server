@@ -44,12 +44,12 @@ import appConfig, { envValidationSchema } from './config/app.config';
               ? {
                   target: 'pino-pretty',
                   options: {
-                singleLine: true,
-                colorize: true,
-                translateTime: 'HH:MM:ss.l',
-                ignore: 'pid,hostname,context',
-                messageFormat: '[{context}] {msg}',
-              },
+                    singleLine: true,
+                    colorize: true,
+                    translateTime: 'HH:MM:ss.l',
+                    ignore: 'pid,hostname,context',
+                    messageFormat: '[{context}] {msg}',
+                  },
                 }
               : undefined,
           serializers: {
@@ -79,9 +79,6 @@ import appConfig, { envValidationSchema } from './config/app.config';
     UploadModule,
   ],
   controllers: [AppController],
-  providers: [
-    AppService,
-    { provide: APP_GUARD, useClass: ThrottlerGuard },
-  ],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

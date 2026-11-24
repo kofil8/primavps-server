@@ -1,4 +1,9 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { PrismaClient } from '@prisma/client';
@@ -27,7 +32,9 @@ export class PrismaService
   async onModuleInit() {
     try {
       await this.$connect();
-      this.logger.log('Database connected successfully via Prisma (PostgreSQL)!');
+      this.logger.log(
+        'Database connected successfully via Prisma (PostgreSQL)!',
+      );
     } catch (error) {
       this.logger.error('Database connection failed!', (error as Error).stack);
       // Fail fast — don't start the app without a database

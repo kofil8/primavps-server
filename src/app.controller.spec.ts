@@ -25,7 +25,9 @@ describe('AppController', () => {
 
   describe('root', () => {
     it('should return welcome message', () => {
-      expect(appController.getHello()).toBe('Welcome to MyApp! A NestJS production application');
+      expect(appController.getHello()).toBe(
+        'Welcome to MyApp! A NestJS production application',
+      );
     });
   });
 });

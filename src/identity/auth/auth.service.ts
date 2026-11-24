@@ -1,41 +1,25 @@
+import { InjectQueue } from '@nestjs/bullmq';
 import {
+  BadRequestException,
   ConflictException,
   Inject,
   Injectable,
-  UnauthorizedException,
-  BadRequestException,
   Logger,
+  UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { JsonWebTokenError, JwtService, TokenExpiredError } from '@nestjs/jwt';
 import { Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
+import { Queue } from 'bullmq';
 import { randomUUID } from 'crypto';
 import Redis from 'ioredis';
-import { InjectQueue } from '@nestjs/bullmq';
-import { Queue } from 'bullmq';
 import { PrismaService } from '../../core/prisma/prisma.service';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { LoginUserDto } from './dto/login-user.dto';
 import { RegisterUserDto } from './dto/register-user.dto';
-import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
 import { VerifyEmailDto } from './dto/verify-email.dto';
-
-// ─── Types ────────────────────────────────────────────
-interface SafeUser {
-  id: string;
-  email: string;
-  firstName: string;
-  lastName: string;
-  role: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-
-interface AuthTokens {
-  accessToken: string;
-  refreshToken: string;
-}
 
 @Injectable()
 export class AuthService {
@@ -56,7 +40,9 @@ export class AuthService {
 
     // Generate email verification token
     const emailVerificationToken = randomUUID();
-    const emailVerificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+    const emailVerificationTokenExpiry = new Date(
+      Date.now() + 24 * 60 * 60 * 1000,
+    ); // 24 hours
 
     const user = await this.prisma.user.create({
       data: {
@@ -92,9 +78,15 @@ export class AuthService {
       name: user.firstName,
     });
 
-    this.logger.log(`User registered: ${user.email}. Verification email queued.`);
+    this.logger.log(
+      `User registered: ${user.email}. Verification email queued.`,
+    );
 
-    return { user, message: 'User registered successfully. Please check your email to verify your account.' };
+    return {
+      user,
+      message:
+        'User registered successfully. Please check your email to verify your account.',
+    };
   }
 
   async login(data: LoginUserDto) {
@@ -299,7 +291,11 @@ export class AuthService {
     return bcrypt.compare(password, hashedPassword);
   }
 
-  private async generateTokens(user: { id: string; email: string; role: string }) {
+  private async generateTokens(user: {
+    id: string;
+    email: string;
+    role: string;
+  }) {
     const [accessToken, refreshToken] = await Promise.all([
       this.generateAccessToken(user),
       this.generateRefreshToken(user),
@@ -307,7 +303,11 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  private async generateAccessToken(user: { id: string; email: string; role: string }) {
+  private async generateAccessToken(user: {
+    id: string;
+    email: string;
+    role: string;
+  }) {
     const payload = { email: user.email, sub: user.id, role: user.role };
     return this.jwtService.signAsync(payload, {
       secret: this.configService.get<string>('JWT_SECRET'),
@@ -315,7 +315,11 @@ export class AuthService {
     });
   }
 
-  private async generateRefreshToken(user: { id: string; email: string; role: string }) {
+  private async generateRefreshToken(user: {
+    id: string;
+    email: string;
+    role: string;
+  }) {
     return this.jwtService.signAsync(
       { sub: user.id },
       {

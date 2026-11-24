@@ -5,7 +5,7 @@ import { ConfigService } from '@nestjs/config';
 export class S3Storage {
   constructor(private readonly configService: ConfigService) {}
 
-  async save(
+  save(
     file: Express.Multer.File,
     subDirectory = 'general',
   ): Promise<{ path: string; url: string }> {
@@ -28,14 +28,15 @@ export class S3Storage {
     // }));
 
     const key = `${subDirectory}/${Date.now()}-${file.originalname}`;
-    return {
+    return Promise.resolve({
       path: key,
       url: `https://${this.configService.get<string>('S3_BUCKET')}.s3.amazonaws.com/${key}`,
-    };
+    });
   }
 
-  async delete(filePath: string): Promise<void> {
+  delete(_filePath: string): Promise<void> {
     // TODO: Implement S3 delete
     // const { S3Client, DeleteObjectCommand } = require('@aws-sdk/client-s3');
+    return Promise.resolve();
   }
 }

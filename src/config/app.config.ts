@@ -85,7 +85,10 @@ export default () => ({
   upload: {
     storage: process.env.FILE_STORAGE || 'local',
     dir: process.env.UPLOAD_DIR || './uploads',
-    maxFileSize: parseInt(process.env.MAX_FILE_SIZE || `${10 * 1024 * 1024}`, 10),
+    maxFileSize: parseInt(
+      process.env.MAX_FILE_SIZE || `${10 * 1024 * 1024}`,
+      10,
+    ),
   },
   s3: {
     region: process.env.AWS_REGION || 'us-east-1',

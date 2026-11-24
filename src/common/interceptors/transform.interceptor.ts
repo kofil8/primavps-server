@@ -4,6 +4,7 @@ import {
   Injectable,
   NestInterceptor,
 } from '@nestjs/common';
+import type { Request, Response as ExpressResponse } from 'express';
 import { Observable } from 'rxjs';
 import { map } from 'rxjs/operators';
 
@@ -21,11 +22,11 @@ export class TransformInterceptor<T> implements NestInterceptor<
 > {
   intercept(
     context: ExecutionContext,
-    next: CallHandler,
+    next: CallHandler<T>,
   ): Observable<Response<T>> {
     const ctx = context.switchToHttp();
-    const response = ctx.getResponse();
-    const request = ctx.getRequest();
+    const response = ctx.getResponse<ExpressResponse>();
+    const request = ctx.getRequest<Request>();
 
     const statusCode = response.statusCode;
     const method = request.method;
@@ -46,11 +47,12 @@ export class TransformInterceptor<T> implements NestInterceptor<
           'message' in result &&
           'data' in result
         ) {
+          const wrapped = result as unknown as { message: string; data: T };
           return {
             success: true,
             statusCode: statusCode,
-            message: result.message,
-            data: result.data,
+            message: wrapped.message,
+            data: wrapped.data,
           };
         }
 

@@ -1,4 +1,5 @@
 import { Test, TestingModule } from '@nestjs/testing';
+import { getQueueToken } from '@nestjs/bullmq';
 import { ConfigService } from '@nestjs/config';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../../core/prisma/prisma.service';
@@ -28,8 +29,8 @@ describe('AuthService', () => {
   const mockConfigService = {
     get: jest.fn().mockImplementation((key: string) => {
       const config: Record<string, string> = {
-        'JWT_SECRET': 'test-secret',
-        'REFRESH_SECRET': 'test-refresh-secret',
+        JWT_SECRET: 'test-secret',
+        REFRESH_SECRET: 'test-refresh-secret',
       };
       return config[key];
     }),
@@ -43,6 +44,7 @@ describe('AuthService', () => {
         { provide: JwtService, useValue: mockJwtService },
         { provide: 'REDIS_CLIENT', useValue: mockRedisClient },
         { provide: ConfigService, useValue: mockConfigService },
+        { provide: getQueueToken('email'), useValue: { add: jest.fn() } },
       ],
     }).compile();
 

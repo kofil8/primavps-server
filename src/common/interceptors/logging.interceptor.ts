@@ -6,6 +6,7 @@ import {
   Logger,
   NestInterceptor,
 } from '@nestjs/common';
+import type { Request, Response } from 'express';
 import { Observable, throwError } from 'rxjs';
 import { catchError, tap } from 'rxjs/operators';
 
@@ -26,13 +27,13 @@ export class LoggingInterceptor implements NestInterceptor {
     return ` [${entries.map(([k, v]) => `${k}=${v}`).join(', ')}]`;
   }
 
-  intercept(context: ExecutionContext, next: CallHandler): Observable<any> {
+  intercept(context: ExecutionContext, next: CallHandler): Observable<unknown> {
     const ctx = context.switchToHttp();
-    const request = ctx.getRequest();
-    const response = ctx.getResponse();
+    const request = ctx.getRequest<Request & { requestId?: string }>();
+    const response = ctx.getResponse<Response>();
 
     const { method, originalUrl, params = {} } = request;
-    const requestId = request['requestId'];
+    const requestId = request.requestId;
     const startTime = Date.now();
 
     return next.handle().pipe(
@@ -45,22 +46,24 @@ export class LoggingInterceptor implements NestInterceptor {
         );
         const reqId = requestId ? ` [reqId: ${requestId}]` : '';
         const sizeStr = size ? ` [size: ${size}]` : '';
-        const paramsStr = this.formatParams(params);
+        const paramsStr = this.formatParams(params as Record<string, string>);
         this.logger.log(
           `${method} ${originalUrl} ${statusCode} - ${duration}ms${reqId}${paramsStr}${sizeStr}`,
         );
       }),
       // 2. Handles Error Responses (4xx, 5xx)
-      catchError((error) => {
+      catchError((error: unknown) => {
         const duration = Date.now() - startTime;
 
         // Extract status code from NestJS exceptions or default to 500
         const statusCode =
           error instanceof HttpException ? error.getStatus() : 500;
+        const errorMessage =
+          error instanceof Error ? error.message : String(error);
 
         // Log as a warning or error based on the level
-        const paramsStr = this.formatParams(params);
-        const logMsg = `${method} ${originalUrl} ${statusCode} - ${duration}ms${paramsStr} - Error: ${error.message}`;
+        const paramsStr = this.formatParams(params as Record<string, string>);
+        const logMsg = `${method} ${originalUrl} ${statusCode} - ${duration}ms${paramsStr} - Error: ${errorMessage}`;
         if (statusCode >= 500) {
           this.logger.error(logMsg);
         } else {

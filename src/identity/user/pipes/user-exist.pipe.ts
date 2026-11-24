@@ -12,10 +12,7 @@ import { UserService } from '../user.service';
 export class UserExistsPipe implements PipeTransform {
   constructor(private readonly userService: UserService) {}
 
-  async transform(
-    value: string,
-    metadata: ArgumentMetadata,
-  ): Promise<string> {
+  async transform(value: string, metadata: ArgumentMetadata): Promise<string> {
     if (!isUUID(value)) {
       throw new BadRequestException(
         `Invalid UUID format for parameter '${metadata.data || 'id'}'`,
