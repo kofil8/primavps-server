@@ -50,7 +50,7 @@ export const envValidationSchema = Joi.object({
 
 export default () => ({
   app: {
-    name: process.env.APP_NAME || 'MyApp',
+    name: process.env.APP_NAME || 'Primavps',
     description: process.env.DESCRIPTION || 'A NestJS production application',
     port: parseInt(process.env.PORT || '9001', 10),
     nodeEnv: process.env.NODE_ENV || 'development',

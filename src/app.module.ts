@@ -11,6 +11,9 @@ import { PostsModule } from './content';
 import { UploadModule } from './media';
 import { HealthModule } from './health/health.module';
 import appConfig, { envValidationSchema } from './config/app.config';
+import { PaymentsModule } from './payments/payments.module';
+import { PaymentsController } from './payments/payments.controller';
+import { PaymentsService } from './payments/payments.service';
 
 @Module({
   imports: [
@@ -77,8 +80,9 @@ import appConfig, { envValidationSchema } from './config/app.config';
     MailModule,
     QueueModule,
     UploadModule,
+    PaymentsModule,
   ],
-  controllers: [AppController],
-  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
+  controllers: [AppController, PaymentsController],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }, PaymentsService],
 })
 export class AppModule {}

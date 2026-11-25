@@ -54,6 +54,7 @@ enum InvoiceStatus {
 }
 
 enum PaymentGateway {
+  UDDOKTAPAY
   SSLCOMMERZ
   BKASH
   NAGAD
@@ -169,13 +170,13 @@ model User {
 }
 
 model Post {
-  id       String @id @default(uuid())
-  title    String
-  slug     String? @unique // Ready for /blog/[slug]
-  category String?
-  summary  String?
-  content  String
-  readTime String?
+  id        String  @id @default(uuid())
+  title     String
+  slug      String? @unique // Ready for /blog/[slug]
+  category  String?
+  summary   String?
+  content   String
+  readTime  String?
   published Boolean @default(false)
 
   author   User   @relation(fields: [authorId], references: [id])
@@ -314,16 +315,16 @@ model Order {
   country     String       @default("US") // US, UK, DE, FR
   carrier     String?      @default("Auto") // AT&T, Comcast, BT, etc.
   isFreshIp   Boolean      @default(false)
-  osName      String?      // e.g., "Ubuntu 24.04" or "Windows 11"
-  regionName  String?      // e.g., "Ashburn, VA"
-  customSpecs Json?        // { vcpu, ram, nvme, residentialIpAddon } for CLOUD_VPS
+  osName      String? // e.g., "Ubuntu 24.04" or "Windows 11"
+  regionName  String? // e.g., "Ashburn, VA"
+  customSpecs Json? // { vcpu, ram, nvme, residentialIpAddon } for CLOUD_VPS
   cycle       BillingCycle @default(MONTHLY)
 
   // Server-calculated pricing (Never trust client amounts)
-  subtotalBdt      Int
-  cycleDiscountBdt Int @default(0)
+  subtotalBdt       Int
+  cycleDiscountBdt  Int @default(0)
   couponDiscountBdt Int @default(0)
-  totalBdt         Int
+  totalBdt          Int
 
   coupon   Coupon? @relation(fields: [couponId], references: [id])
   couponId String?
@@ -373,12 +374,12 @@ model PaymentTransaction {
   invoiceId         String
   gateway           PaymentGateway
   gatewayTranId     String            @unique // Idempotency key sent to SSLCommerz/bKash
-  gatewayValId      String?           // SSLCommerz val_id / bKash paymentID
+  gatewayValId      String? // SSLCommerz val_id / bKash paymentID
   amountBdt         Int
   currency          String            @default("BDT")
   status            TransactionStatus @default(INITIATED)
   refundedAmountBdt Int               @default(0)
-  rawPayload        Json?             // Full IPN/webhook payload for compliance & disputes
+  rawPayload        Json? // Full IPN/webhook payload for compliance & disputes
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -395,11 +396,11 @@ model PaymentTransaction {
 model ProxmoxNode {
   id        String     @id @default(uuid())
   name      String     @unique // e.g., "us-ashburn-01", "eu-frankfurt-01"
-  region    String     // "Ashburn, VA"
-  country   String     // "US"
-  host      String     // API endpoint / IP
+  region    String // "Ashburn, VA"
+  country   String // "US"
+  host      String // API endpoint / IP
   health    NodeHealth @default(OPERATIONAL)
-  pingMs    Int?       // Live latency from Dhaka
+  pingMs    Int? // Live latency from Dhaka
   uptimePct Float      @default(99.98)
   isActive  Boolean    @default(true)
 
@@ -412,17 +413,17 @@ model ProxmoxNode {
 }
 
 model IpPool {
-  id             String   @id @default(uuid())
-  ipAddress      String   @unique
-  subnet         String?
-  country        String   // "US", "UK", "DE", "FR"
-  state          String?  // "VA", "TX", "CA", "FL"
-  carrier        String   // "AT&T", "Comcast", "Verizon", "BT"
-  asn            String?  // e.g., "AS7018"
-  isVirgin       Boolean  @default(false)
-  lastIpqsScore  Int?     // 0..100
-  lastCheckedAt  DateTime?
-  status         IpStatus @default(AVAILABLE)
+  id            String    @id @default(uuid())
+  ipAddress     String    @unique
+  subnet        String?
+  country       String // "US", "UK", "DE", "FR"
+  state         String? // "VA", "TX", "CA", "FL"
+  carrier       String // "AT&T", "Comcast", "Verizon", "BT"
+  asn           String? // e.g., "AS7018"
+  isVirgin      Boolean   @default(false)
+  lastIpqsScore Int? // 0..100
+  lastCheckedAt DateTime?
+  status        IpStatus  @default(AVAILABLE)
 
   instance VpsInstance?
 
@@ -434,16 +435,16 @@ model IpPool {
 }
 
 model VpsInstance {
-  id       String @id @default(uuid())
-  user     User   @relation(fields: [userId], references: [id])
-  userId   String
-  order    Order  @relation(fields: [orderId], references: [id])
-  orderId  String @unique
+  id      String @id @default(uuid())
+  user    User   @relation(fields: [userId], references: [id])
+  userId  String
+  order   Order  @relation(fields: [orderId], references: [id])
+  orderId String @unique
 
   // Infrastructure mapping
   node        ProxmoxNode? @relation(fields: [nodeId], references: [id])
   nodeId      String?
-  proxmoxVmId Int?         // VMID on Proxmox VE
+  proxmoxVmId Int? // VMID on Proxmox VE
   ipPool      IpPool?      @relation(fields: [ipPoolId], references: [id])
   ipPoolId    String?      @unique
 
@@ -467,7 +468,7 @@ model VpsInstance {
   provisionedAt         DateTime?
   expiresAt             DateTime
   autoRenew             Boolean        @default(false)
-  freeSwapEligibleUntil DateTime?      // provisionedAt + 7 days
+  freeSwapEligibleUntil DateTime? // provisionedAt + 7 days
   freeSwapsUsed         Int            @default(0) // Cap free swaps (e.g., max 1-2)
 
   invoices     Invoice[]
@@ -533,13 +534,13 @@ model SupportTicket {
 }
 
 model TicketMessage {
-  id        String        @id @default(uuid())
-  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  ticketId  String
-  sender    User          @relation(fields: [senderId], references: [id])
-  senderId  String
-  isStaff   Boolean       @default(false)
-  body      String
+  id       String        @id @default(uuid())
+  ticket   SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  ticketId String
+  sender   User          @relation(fields: [senderId], references: [id])
+  senderId String
+  isStaff  Boolean       @default(false)
+  body     String
 
   createdAt DateTime @default(now())
 
@@ -551,8 +552,8 @@ model AuditLog {
   id        String  @id @default(uuid())
   actor     User?   @relation(fields: [actorId], references: [id])
   actorId   String?
-  action    String  // e.g., "ORDER_PAID", "VPS_PROVISIONED", "IP_SWAPPED", "PASSWORD_VIEWED"
-  entity    String  // e.g., "VpsInstance", "Order", "IpPool"
+  action    String // e.g., "ORDER_PAID", "VPS_PROVISIONED", "IP_SWAPPED", "PASSWORD_VIEWED"
+  entity    String // e.g., "VpsInstance", "Order", "IpPool"
   entityId  String
   metadata  Json?
   ipAddress String?

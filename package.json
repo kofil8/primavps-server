@@ -22,6 +22,7 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
+    "@nestjs/axios": "^12.0.2",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/common": "^11.1.27",
     "@nestjs/config": "^4.0.4",
@@ -34,6 +35,7 @@
     "@nestjs/throttler": "^6.5.0",
     "@prisma/adapter-pg": "^7.8.0",
     "@prisma/client": "^7.8.0",
+    "axios": "^1.21.1",
     "bcrypt": "^6.0.0",
     "bullmq": "^5.80.2",
     "class-transformer": "^0.5.1",
@@ -111,16 +113,6 @@
     ],
     "coverageDirectory": "../coverage",
     "testEnvironment": "node"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@parcel/watcher",
-      "@prisma/engines",
-      "@swc/core",
-      "bcrypt",
-      "msgpackr-extract",
-      "prisma"
-    ]
   },
   "packageManager": "pnpm@12.23.0+sha512.02da94ffaf133f46074322afe552f90d40b5f71ae259aefbccdacc5085b1d617e98d65e0131f5748b9b67445978ee5055d7d59a473f1eef0d504854fefcd5975"
 }

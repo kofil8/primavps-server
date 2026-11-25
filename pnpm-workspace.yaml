@@ -1,8 +1,8 @@
 allowBuilds:
-  '@parcel/watcher': false
-  '@prisma/engines': false
-  '@scarf/scarf': false
-  '@swc/core': false
-  bcrypt: false
-  msgpackr-extract: false
-  prisma: false
+  '@parcel/watcher': true
+  '@prisma/engines': true
+  '@scarf/scarf': true
+  '@swc/core': true
+  bcrypt: true
+  msgpackr-extract: true
+  prisma: true
