@@ -19,9 +19,9 @@ export class UserExistsPipe implements PipeTransform {
       );
     }
 
-    const user = await this.userService.findUserById(value);
+    const exists = await this.userService.existsActiveUser(value);
 
-    if (!user) {
+    if (!exists) {
       throw new NotFoundException(`User with ID ${value} not found.`);
     }
 

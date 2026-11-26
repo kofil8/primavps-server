@@ -18,6 +18,7 @@ export interface GatewayCreateResult {
 
 export interface GatewayVerifyResult {
   isSuccess: boolean;
+  isPending?: boolean;
   gatewayTranId?: string;
   gatewayValId: string; // UddoktaPay invoice_id বা bKash trxID
   amountBdt: number;

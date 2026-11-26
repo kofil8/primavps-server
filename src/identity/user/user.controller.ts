@@ -7,33 +7,58 @@ import {
   HttpStatus,
   Param,
   Patch,
+  Post,
   Query,
 } from '@nestjs/common';
 import { Role } from '@prisma/client';
-import { UpdateUserDto } from './dto/update-user.dto';
+import { CurrentUser } from '../../common/decorators/current-user.decorator';
+import type { JwtPayload } from '../../common/decorators/current-user.decorator';
+import { Roles } from '../../common/decorators/roles.decorator';
+import { AdjustWalletDto } from './dto/adjust-wallet.dto';
+import { CreateUserDto } from './dto/create-user.dto';
+import { FindUsersQueryDto } from './dto/find-users-query.dto';
+import { UpdateProfileDto, UpdateUserDto } from './dto/update-user.dto';
 import { UserExistsPipe } from './pipes/user-exist.pipe';
 import { UserService } from './user.service';
-import { Roles } from '../../common/decorators/roles.decorator';
-import { CurrentUser } from '../../common/decorators/current-user.decorator';
-import { PaginationDto } from '../../common/dto/pagination.dto';
-import type { JwtPayload } from '../../common/decorators/current-user.decorator';
 
 @Controller('users')
 export class UserController {
   constructor(private readonly userService: UserService) {}
 
-  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
-  @Get()
-  findAllUsers(
-    @Query() pagination: PaginationDto,
-    @Query('search') search?: string,
+  @Get('me')
+  getMyProfile(@CurrentUser() currentUser: JwtPayload) {
+    return this.userService.findUserById(currentUser.sub, currentUser);
+  }
+
+  @Patch('me')
+  updateMyProfile(
+    @CurrentUser('sub') userId: string,
+    @Body() updateProfileDto: UpdateProfileDto,
   ) {
-    return this.userService.findAllUsers({ ...pagination, search });
+    return this.userService.updateProfile(userId, updateProfileDto);
+  }
+
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Post()
+  createUser(
+    @Body() createUserDto: CreateUserDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.userService.createUser(createUserDto, currentUser);
+  }
+
+  @Roles(Role.SUPER_ADMIN, Role.ADMIN, Role.SUPPORT)
+  @Get()
+  findAllUsers(@Query() query: FindUsersQueryDto) {
+    return this.userService.findAllUsers(query);
   }
 
   @Get(':id')
-  findUserById(@Param('id', UserExistsPipe) id: string) {
-    return this.userService.findUserById(id);
+  findUserById(
+    @Param('id', UserExistsPipe) id: string,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.userService.findUserById(id, currentUser);
   }
 
   @Patch(':id')
@@ -43,6 +68,17 @@ export class UserController {
     @CurrentUser() currentUser: JwtPayload,
   ) {
     return this.userService.updateUserById(id, updateUserDto, currentUser);
+  }
+
+  @Roles(Role.ADMIN, Role.SUPER_ADMIN)
+  @Post(':id/wallet-adjust')
+  @HttpCode(HttpStatus.OK)
+  adjustWallet(
+    @Param('id', UserExistsPipe) id: string,
+    @Body() adjustWalletDto: AdjustWalletDto,
+    @CurrentUser() currentUser: JwtPayload,
+  ) {
+    return this.userService.adjustWallet(id, adjustWalletDto, currentUser);
   }
 
   @Delete(':id')

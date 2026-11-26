@@ -10,8 +10,13 @@ describe('UserController', () => {
     user: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
+      create: jest.fn(),
       update: jest.fn(),
       count: jest.fn(),
+    },
+    auditLog: {
+      create: jest.fn(),
     },
   } as unknown as PrismaService;
 

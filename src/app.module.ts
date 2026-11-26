@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { LoggerModule } from 'nestjs-pino';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { PrismaModule, QueueModule, MailModule } from './core';
@@ -12,11 +13,10 @@ import { UploadModule } from './media';
 import { HealthModule } from './health/health.module';
 import appConfig, { envValidationSchema } from './config/app.config';
 import { PaymentsModule } from './payments/payments.module';
-import { PaymentsController } from './payments/payments.controller';
-import { PaymentsService } from './payments/payments.service';
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
     ConfigModule.forRoot({
       isGlobal: true,
       envFilePath: '.env',
@@ -82,7 +82,7 @@ import { PaymentsService } from './payments/payments.service';
     UploadModule,
     PaymentsModule,
   ],
-  controllers: [AppController, PaymentsController],
-  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }, PaymentsService],
+  controllers: [AppController],
+  providers: [AppService, { provide: APP_GUARD, useClass: ThrottlerGuard }],
 })
 export class AppModule {}

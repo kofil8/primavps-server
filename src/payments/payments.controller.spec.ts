@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { UnauthorizedException } from '@nestjs/common';
-import { PaymentGateway } from '@prisma/client';
+import { PaymentGateway, TransactionStatus } from '@prisma/client';
 import { PaymentsController } from './payments.controller';
 import { PaymentsService } from './payments.service';
 import { UddoktaPayGateway } from './gateways/uddoktapay.gateway';
@@ -14,6 +14,8 @@ describe('PaymentsController', () => {
     const mockPaymentsService = {
       initiatePayment: jest.fn(),
       verifyAndCompletePayment: jest.fn(),
+      getTransactionStatus: jest.fn(),
+      getInvoiceTransactions: jest.fn(),
     };
 
     const mockUddoktaPayGateway = {
@@ -39,7 +41,6 @@ describe('PaymentsController', () => {
 
   describe('initiate', () => {
     it('should initiate payment with default UDDOKTAPAY gateway', async () => {
-      const mockReq = { user: { id: 'user-uuid-1' } };
       const dto = { invoiceId: 'inv-uuid-1' };
       const expectedResult = {
         paymentUrl: 'https://uddoktapay.com',
@@ -48,7 +49,7 @@ describe('PaymentsController', () => {
 
       paymentsService.initiatePayment.mockResolvedValue(expectedResult);
 
-      const result = await controller.initiate(mockReq, dto);
+      const result = await controller.initiate('user-uuid-1', dto);
 
       expect(paymentsService.initiatePayment).toHaveBeenCalledWith(
         'user-uuid-1',
@@ -60,7 +61,7 @@ describe('PaymentsController', () => {
   });
 
   describe('verifyUddoktaPay', () => {
-    it('should verify payment using UddoktaPay invoice_id', async () => {
+    it('should verify payment using UddoktaPay invoice_id and authenticated userId', async () => {
       const dto = { invoice_id: 'UP-INV-999' };
       const expectedResult = {
         status: 'COMPLETED',
@@ -70,13 +71,32 @@ describe('PaymentsController', () => {
 
       paymentsService.verifyAndCompletePayment.mockResolvedValue(expectedResult);
 
-      const result = await controller.verifyUddoktaPay(dto);
+      const result = await controller.verifyUddoktaPay('user-uuid-1', dto);
 
       expect(paymentsService.verifyAndCompletePayment).toHaveBeenCalledWith(
         PaymentGateway.UDDOKTAPAY,
         'UP-INV-999',
+        'user-uuid-1',
       );
       expect(result).toEqual(expectedResult);
+    });
+  });
+
+  describe('getTransactionStatus', () => {
+    it('should return transaction status for the authenticated user', async () => {
+      const expected = {
+        gatewayTranId: 'TXN-123',
+        gateway: PaymentGateway.UDDOKTAPAY,
+        status: TransactionStatus.VALIDATED,
+      } as any;
+      paymentsService.getTransactionStatus.mockResolvedValue(expected);
+
+      const result = await controller.getTransactionStatus('user-uuid-1', 'TXN-123');
+      expect(paymentsService.getTransactionStatus).toHaveBeenCalledWith(
+        'user-uuid-1',
+        'TXN-123',
+      );
+      expect(result).toEqual(expected);
     });
   });
 

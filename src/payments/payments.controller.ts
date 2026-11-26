@@ -1,14 +1,19 @@
 import {
   Controller,
   Post,
+  Get,
   Body,
+  Param,
   Headers,
   UnauthorizedException,
   HttpCode,
   HttpStatus,
-  Req,
+  ParseUUIDPipe,
 } from '@nestjs/common';
+import { SkipThrottle } from '@nestjs/throttler';
 import { PaymentGateway } from '@prisma/client';
+import { CurrentUser } from '../common/decorators/current-user.decorator';
+import { Public } from '../common/decorators/public.decorator';
 import { PaymentsService } from './payments.service';
 import { UddoktaPayGateway } from './gateways/uddoktapay.gateway';
 import { InitiatePaymentDto } from './dto/initiate-payment.dto';
@@ -23,10 +28,9 @@ export class PaymentsController {
 
   @Post('initiate')
   async initiate(
-    @Req() req: any,
-    @Body() dto: InitiatePaymentDto & { userId?: string },
+    @CurrentUser('sub') userId: string,
+    @Body() dto: InitiatePaymentDto,
   ) {
-    const userId = req.user?.id || dto.userId;
     return this.paymentsService.initiatePayment(
       userId,
       dto.invoiceId,
@@ -34,23 +38,48 @@ export class PaymentsController {
     );
   }
 
-
   @Post('verify/uddoktapay')
   @HttpCode(HttpStatus.OK)
-  async verifyUddoktaPay(@Body() dto: VerifyUddoktaPayDto) {
+  async verifyUddoktaPay(
+    @CurrentUser('sub') userId: string,
+    @Body() dto: VerifyUddoktaPayDto,
+  ) {
     return this.paymentsService.verifyAndCompletePayment(
       PaymentGateway.UDDOKTAPAY,
       dto.invoice_id,
+      userId,
     );
   }
 
+  @Get('transactions/:gatewayTranId')
+  async getTransactionStatus(
+    @CurrentUser('sub') userId: string,
+    @Param('gatewayTranId') gatewayTranId: string,
+  ) {
+    return this.paymentsService.getTransactionStatus(userId, gatewayTranId);
+  }
+
+  @Get('invoices/:invoiceId/transactions')
+  async getInvoiceTransactions(
+    @CurrentUser('sub') userId: string,
+    @Param('invoiceId', ParseUUIDPipe) invoiceId: string,
+  ) {
+    return this.paymentsService.getInvoiceTransactions(userId, invoiceId);
+  }
+
+  @Public()
+  @SkipThrottle()
   @Post('webhook/uddoktapay')
   @HttpCode(HttpStatus.OK)
   async uddoktaPayWebhook(
-    @Headers('rt-uddoktapay-api-key') headerApiKey: string,
+    @Headers('rt-uddoktapay-api-key') headerApiKey: string | string[] | undefined,
     @Body() payload: { invoice_id?: string },
   ) {
-    if (!this.uddoktaPayGateway.verifyWebhookSignature(headerApiKey)) {
+    const normalizedKey = Array.isArray(headerApiKey)
+      ? headerApiKey[0]
+      : headerApiKey;
+
+    if (!this.uddoktaPayGateway.verifyWebhookSignature(normalizedKey)) {
       throw new UnauthorizedException('Invalid UddoktaPay Webhook Key');
     }
 

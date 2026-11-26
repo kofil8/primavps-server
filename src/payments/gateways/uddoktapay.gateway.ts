@@ -30,13 +30,41 @@ export class UddoktaPayGateway implements IPaymentGateway {
     private readonly httpService: HttpService,
     private readonly configService: ConfigService,
   ) {
-    this.apiKey = this.configService.getOrThrow<string>('UDDOKTAPAY_API_KEY');
-    this.baseUrl = this.configService.getOrThrow<string>('UDDOKTAPAY_BASE_URL');
-    this.frontendUrl = this.configService.getOrThrow<string>('FRONTEND_URL');
-    this.backendUrl = this.configService.getOrThrow<string>('BACKEND_URL');
+    this.apiKey =
+      this.configService.get<string>('uddoktapay.apiKey') ||
+      this.configService.get<string>('UDDOKTAPAY_API_KEY') ||
+      '';
+    this.baseUrl = (
+      this.configService.get<string>('uddoktapay.baseUrl') ||
+      this.configService.get<string>('UDDOKTAPAY_BASE_URL') ||
+      'https://sandbox.uddoktapay.com/api'
+    ).replace(/\/+$/, '');
+    this.frontendUrl = (
+      this.configService.get<string>('urls.frontend') ||
+      this.configService.get<string>('FRONTEND_URL') ||
+      'http://localhost:3000'
+    ).replace(/\/+$/, '');
+    this.backendUrl = (
+      this.configService.get<string>('urls.backend') ||
+      this.configService.get<string>('BACKEND_URL') ||
+      'http://localhost:9001'
+    ).replace(/\/+$/, '');
+
+    if (!this.apiKey) {
+      this.logger.warn(
+        'UDDOKTAPAY_API_KEY is not configured; UddoktaPay requests and webhooks will fail.',
+      );
+    }
+  }
+
+  private assertConfigured() {
+    if (!this.apiKey) {
+      throw new BadGatewayException('UddoktaPay API কনফিগার করা হয়নি');
+    }
   }
 
   private getHeaders() {
+    this.assertConfigured();
     return {
       'RT-UDDOKTAPAY-API-KEY': this.apiKey,
       'Content-Type': 'application/json',
@@ -45,8 +73,9 @@ export class UddoktaPayGateway implements IPaymentGateway {
   }
 
   async createPayment(input: GatewayCreateInput): Promise<GatewayCreateResult> {
+    const fullName = input.customerName.trim() || 'Customer';
     const payload = {
-      full_name: input.customerName,
+      full_name: fullName,
       email: input.customerEmail,
       amount: input.amountBdt.toString(),
       metadata: {
@@ -54,10 +83,10 @@ export class UddoktaPayGateway implements IPaymentGateway {
         invoice_number: input.invoiceNumber,
         ...input.metadata,
       },
-      redirect_url: `${this.frontendUrl}/billing/payment/success`,
+      redirect_url: `${this.frontendUrl}/checkout/success`,
       return_type: 'GET',
-      cancel_url: `${this.frontendUrl}/billing/payment/cancel`,
-      webhook_url: `${this.backendUrl}/api/payments/webhook/uddoktapay`,
+      cancel_url: `${this.frontendUrl}/checkout/failed?reason=cancelled`,
+      webhook_url: `${this.backendUrl}/api/v1/payments/webhook/uddoktapay`,
     };
 
     const { data } = await firstValueFrom(
@@ -68,18 +97,23 @@ export class UddoktaPayGateway implements IPaymentGateway {
         })
         .pipe(
           catchError((err: AxiosError) => {
-            this.logger.error(`UddoktaPay Create Error: ${JSON.stringify(err.response?.data || err.message)}`);
+            this.logger.error(
+              `UddoktaPay Create Error: ${JSON.stringify(err.response?.data || err.message)}`,
+            );
             throw new BadGatewayException('পেমেন্ট সেশন তৈরি করতে সমস্যা হয়েছে');
           }),
         ),
     );
 
     if (!data?.status || !data?.payment_url) {
-      throw new BadRequestException(data?.message || 'UddoktaPay চেকআউট লিংক দেয়নি');
+      throw new BadRequestException(
+        data?.message || 'UddoktaPay চেকআউট লিংক দেয়নি',
+      );
     }
 
     return {
       paymentUrl: data.payment_url,
+      gatewayPaymentId: data?.invoice_id,
       rawResponse: data,
     };
   }
@@ -94,14 +128,19 @@ export class UddoktaPayGateway implements IPaymentGateway {
         )
         .pipe(
           catchError((err: AxiosError) => {
-            this.logger.error(`UddoktaPay Verify Error [${invoiceId}]: ${JSON.stringify(err.response?.data || err.message)}`);
+            this.logger.error(
+              `UddoktaPay Verify Error [${invoiceId}]: ${JSON.stringify(err.response?.data || err.message)}`,
+            );
             throw new BadGatewayException('পেমেন্ট ভেরিফিকেশন ব্যর্থ হয়েছে');
           }),
         ),
     );
 
+    const status = typeof data?.status === 'string' ? data.status.toUpperCase() : '';
+
     return {
-      isSuccess: data?.status === 'COMPLETED',
+      isSuccess: status === 'COMPLETED',
+      isPending: status === 'PENDING',
       gatewayTranId: data?.metadata?.gateway_tran_id,
       gatewayValId: data?.invoice_id || invoiceId,
       amountBdt: Math.round(Number(data?.amount || 0)),
@@ -110,7 +149,12 @@ export class UddoktaPayGateway implements IPaymentGateway {
   }
 
   verifyWebhookSignature(incomingKey?: string): boolean {
-    if (!incomingKey || incomingKey.length !== this.apiKey.length) return false;
-    return crypto.timingSafeEqual(Buffer.from(incomingKey), Buffer.from(this.apiKey));
+    if (!this.apiKey || !incomingKey || incomingKey.length !== this.apiKey.length) {
+      return false;
+    }
+    return crypto.timingSafeEqual(
+      Buffer.from(incomingKey),
+      Buffer.from(this.apiKey),
+    );
   }
 }

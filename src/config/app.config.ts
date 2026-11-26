@@ -46,6 +46,14 @@ export const envValidationSchema = Joi.object({
   AWS_ACCESS_KEY_ID: Joi.string().allow('').optional(),
   AWS_SECRET_ACCESS_KEY: Joi.string().allow('').optional(),
   S3_BUCKET: Joi.string().allow('').optional(),
+
+  // Payments & URLs (UddoktaPay)
+  FRONTEND_URL: Joi.string().uri().default('http://localhost:3000'),
+  BACKEND_URL: Joi.string().uri().default('http://localhost:9001'),
+  UDDOKTAPAY_API_KEY: Joi.string().allow('').optional(),
+  UDDOKTAPAY_BASE_URL: Joi.string()
+    .uri()
+    .default('https://sandbox.uddoktapay.com/api'),
 });
 
 export default () => ({
@@ -95,5 +103,21 @@ export default () => ({
     accessKeyId: process.env.AWS_ACCESS_KEY_ID || undefined,
     secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || undefined,
     bucket: process.env.S3_BUCKET || undefined,
+  },
+  urls: {
+    frontend: (process.env.FRONTEND_URL || 'http://localhost:3000').replace(
+      /\/+$/,
+      '',
+    ),
+    backend: (process.env.BACKEND_URL || 'http://localhost:9001').replace(
+      /\/+$/,
+      '',
+    ),
+  },
+  uddoktapay: {
+    apiKey: process.env.UDDOKTAPAY_API_KEY || '',
+    baseUrl: (
+      process.env.UDDOKTAPAY_BASE_URL || 'https://sandbox.uddoktapay.com/api'
+    ).replace(/\/+$/, ''),
   },
 });

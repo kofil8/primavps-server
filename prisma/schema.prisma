@@ -72,6 +72,12 @@ enum TransactionStatus {
   REFUNDED
 }
 
+enum WalletTxnType {
+  CREDIT
+  DEBIT
+  REFUND
+}
+
 enum IpStatus {
   AVAILABLE
   RESERVED
@@ -118,7 +124,7 @@ enum NodeHealth {
 }
 
 // ============================================================================
-// 2. IDENTITY & EXISTING STARTER MODELS (100% Backwards-Compatible)
+// 2. IDENTITY, ROLE-SPECIFIC PROFILES & EXISTING STARTER MODELS
 // ============================================================================
 
 model User {
@@ -130,10 +136,19 @@ model User {
   phone     String? // BD phone / WhatsApp for support & bKash verification
   role      Role    @default(USER)
 
-  // Reseller & Wallet (Optional balance for refunds / reseller credits)
+  // Client & Reseller Wallet
   walletBalanceBdt Int     @default(0)
-  resellerDiscount Int     @default(0) // e.g., 10-20% for RESELLER role
   isSuspended      Boolean @default(false)
+
+  // Reseller-specific profile (used when role = RESELLER)
+  agencyName       String?
+  resellerDiscount Int     @default(0) // 10, 15, or 20%
+  customDomain     String?
+  supportEmail     String?
+
+  // Support Staff-specific profile (used when role = SUPPORT)
+  department  String? // "Technical Ops" | "Billing & Payments" | "IP & Abuse"
+  permissions String[] @default([]) // ["provision_orders", "approve_ip_swaps", "reply_tickets"]
 
   // Email verification
   emailVerified                Boolean   @default(false)
@@ -149,22 +164,26 @@ model User {
   uploadedFiles File[]
 
   // primavps domain relations
-  orders            Order[]
-  invoices          Invoice[]
-  instances         VpsInstance[]
-  ipSwaps           IpSwapRequest[]    @relation("UserSwapRequests")
-  handledSwaps      IpSwapRequest[]    @relation("AdminHandledSwaps")
-  couponRedemptions CouponRedemption[]
-  tickets           SupportTicket[]
-  ticketMessages    TicketMessage[]
-  auditLogs         AuditLog[]
+  orders             Order[]
+  invoices           Invoice[]
+  instances          VpsInstance[]
+  ipSwaps            IpSwapRequest[]     @relation("UserSwapRequests")
+  handledSwaps       IpSwapRequest[]     @relation("AdminHandledSwaps")
+  couponRedemptions  CouponRedemption[]
+  tickets            SupportTicket[]
+  ticketMessages     TicketMessage[]
+  walletTransactions WalletTransaction[] @relation("UserWalletTxns")
+  adminWalletActions WalletTransaction[] @relation("AdminWalletActor")
+  resellerClients    ResellerClient[]
+  resellerApiKeys    ResellerApiKey[]
+  auditLogs          AuditLog[]
 
   // Soft-delete & Audit
   deletedAt DateTime?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  @@index([role])
+  @@index([role, isSuspended])
   @@index([phone])
   @@map("users")
 }
@@ -173,10 +192,11 @@ model Post {
   id        String  @id @default(uuid())
   title     String
   slug      String? @unique // Ready for /blog/[slug]
-  category  String?
+  category  String? // "GUIDES" | "IP SECURITY" | "CLOUD & DEVOPS"
   summary   String?
   content   String
   readTime  String?
+  featured  Boolean @default(false) // Featured Hero Guide on /blog
   published Boolean @default(false)
 
   author   User   @relation(fields: [authorId], references: [id])
@@ -186,7 +206,7 @@ model Post {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
-  @@index([published, createdAt])
+  @@index([published, featured, createdAt])
   @@map("posts")
 }
 
@@ -225,7 +245,7 @@ model EmailLog {
 }
 
 // ============================================================================
-// 3. CATALOG & PRICING (ISP Plans + Cloud VPS Config)
+// 3. CATALOG & PRICING (ISP Plans + Cloud VPS Dynamic Config)
 // ============================================================================
 
 model Plan {
@@ -255,13 +275,55 @@ model Plan {
   @@map("plans")
 }
 
+model CloudPricingConfig {
+  id                    String @id @default("default")
+  perVcpuBdt            Int    @default(400)
+  perGbRamBdt           Int    @default(180)
+  per10GbNvmeBdt        Int    @default(40)
+  residentialIpAddonBdt Int    @default(1200)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("cloud_pricing_config")
+}
+
+model CloudRegion {
+  id        String  @id @default(uuid())
+  code      String  @unique // "us-dallas", "us-ashburn", "us-chicago"
+  city      String
+  state     String
+  location  String // "US-Central", "US-East"
+  isOnline  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cloud_regions")
+}
+
+model CloudOsImage {
+  id        String  @id @default(uuid())
+  slug      String  @unique // "ubuntu-24", "win-2022", "win-10"
+  name      String
+  subtitle  String?
+  minRamGb  Int     @default(1)
+  isActive  Boolean @default(true)
+  sortOrder Int     @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("cloud_os_images")
+}
+
 // ============================================================================
 // 4. COUPONS & ABUSE PREVENTION
 // ============================================================================
 
 model Coupon {
   id              String        @id @default(uuid())
-  code            String        @unique // "LAUNCH10", "CLOUD15", "VIRGIN12"
+  code            String        @unique // "LAUNCH10", "PRO12", "CLOUD15"
   description     String?
   discountPercent Int // 1..50
   applicableTypes ProductType[] // Prevents CLOUD15 on ISP_VPS
@@ -299,7 +361,7 @@ model CouponRedemption {
 }
 
 // ============================================================================
-// 5. ORDERS, INVOICES & PAYMENTS (SSLCommerz / bKash / Nagad)
+// 5. ORDERS, INVOICES, PAYMENTS & WALLET LEDGER
 // ============================================================================
 
 model Order {
@@ -342,7 +404,6 @@ model Order {
   @@map("orders")
 }
 
-// Separate Invoice model so monthly renewals generate new invoices cleanly
 model Invoice {
   id            String        @id @default(uuid())
   invoiceNumber String        @unique // e.g., "INV-2026-1001"
@@ -389,8 +450,67 @@ model PaymentTransaction {
   @@map("payment_transactions")
 }
 
+model WalletTransaction {
+  id              String        @id @default(uuid())
+  user            User          @relation("UserWalletTxns", fields: [userId], references: [id])
+  userId          String
+  type            WalletTxnType
+  amountBdt       Int
+  balanceAfterBdt Int
+  method          String        @default("MANUAL") // "bKash" | "SSLCommerz" | "Wallet" | "Admin"
+  description     String
+  referenceId     String? // Optional Order ID / bKash TrxID
+  actor           User?         @relation("AdminWalletActor", fields: [actorId], references: [id])
+  actorId         String? // Admin who performed manual credit/debit
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@map("wallet_transactions")
+}
+
 // ============================================================================
-// 6. INFRASTRUCTURE, IP POOL, VPS INSTANCES & 7-DAY IP SWAPS
+// 6. RESELLER SUB-CLIENTS & API KEYS
+// ============================================================================
+
+model ResellerClient {
+  id         String  @id @default(uuid())
+  reseller   User    @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  resellerId String
+  name       String
+  email      String
+  phone      String?
+  company    String?
+  isActive   Boolean @default(true)
+
+  instances VpsInstance[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resellerId])
+  @@map("reseller_clients")
+}
+
+model ResellerApiKey {
+  id         String    @id @default(uuid())
+  reseller   User      @relation(fields: [resellerId], references: [id], onDelete: Cascade)
+  resellerId String
+  label      String
+  prefix     String // e.g., "pv_live_9f8a"
+  keyHash    String    @unique // SHA-256 hash of full API key
+  lastUsedAt DateTime?
+  isActive   Boolean   @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([resellerId, isActive])
+  @@map("reseller_api_keys")
+}
+
+// ============================================================================
+// 7. INFRASTRUCTURE, IP POOL, VPS INSTANCES & 7-DAY IP SWAPS
 // ============================================================================
 
 model ProxmoxNode {
@@ -441,6 +561,10 @@ model VpsInstance {
   order   Order  @relation(fields: [orderId], references: [id])
   orderId String @unique
 
+  // Optional Reseller Sub-Client assignment
+  resellerClient   ResellerClient? @relation(fields: [resellerClientId], references: [id])
+  resellerClientId String?
+
   // Infrastructure mapping
   node        ProxmoxNode? @relation(fields: [nodeId], references: [id])
   nodeId      String?
@@ -479,6 +603,7 @@ model VpsInstance {
   updatedAt DateTime @updatedAt
 
   @@index([userId, status])
+  @@index([resellerClientId])
   @@index([expiresAt, status])
   @@map("vps_instances")
 }
@@ -509,7 +634,7 @@ model IpSwapRequest {
 }
 
 // ============================================================================
-// 7. SUPPORT TICKETS & AUDIT LOGS
+// 8. SUPPORT TICKETS & AUDIT LOGS
 // ============================================================================
 
 model SupportTicket {
@@ -552,8 +677,8 @@ model AuditLog {
   id        String  @id @default(uuid())
   actor     User?   @relation(fields: [actorId], references: [id])
   actorId   String?
-  action    String // e.g., "ORDER_PAID", "VPS_PROVISIONED", "IP_SWAPPED", "PASSWORD_VIEWED"
-  entity    String // e.g., "VpsInstance", "Order", "IpPool"
+  action    String // e.g., "ORDER_PAID", "VPS_PROVISIONED", "IP_SWAPPED", "WALLET_CREDITED"
+  entity    String // e.g., "VpsInstance", "Order", "User", "IpPool"
   entityId  String
   metadata  Json?
   ipAddress String?

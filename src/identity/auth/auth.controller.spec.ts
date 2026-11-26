@@ -12,7 +12,12 @@ describe('AuthController', () => {
     refreshToken: jest.fn(),
     forgotPassword: jest.fn(),
     resetPassword: jest.fn(),
+    verifyEmail: jest.fn(),
+    resendVerification: jest.fn(),
+    changePassword: jest.fn(),
+    getProfile: jest.fn(),
     logout: jest.fn(),
+    logoutAll: jest.fn(),
   };
 
   const mockConfigService = {
